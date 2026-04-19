@@ -56,27 +56,6 @@ Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solu
 
 *Access the site at http://localhost:5173.*
 
-3. **Telegram Configuration**
-   i) **Create your Bot**
-   - Search for **@BotFather** on Telegram.
-   - Send ```/newbot``` and follow the instructions to get your API Token.
-   - Search for your new bot on Telegram and send the ```/start``` command.
-     
-   ii) **Find Your Chat ID**
-   - Search for **@userinfobot** on Telegram.
-   - Send any message to receive your unique **Numeric Chat ID**.
-
-   iii) **Initialize**
-   - Find your bot on Telegram and send the `/start` command to allow it to send you messages.
-     
-   iv) **Link to SARA**
-   - Open your terminal in the project directory and run the following commands to set your secrets:
-     ```bash
-     # Set the Bot Token
-     supabase secrets set TELEGRAM_BOT_TOKEN="your_api_token_here"
-     
-     # Set your personal Chat ID
-     supabase secrets set TELEGRAM_CHAT_ID="your_chat_id_here"
 ## 
 
 *Developed for Certis NAISC 2026.*
