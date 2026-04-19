@@ -8,7 +8,7 @@ export const ZONES: Zone[] = [
   { id: "hallway",   label: "Hallway",   cameraId: "CAM-09", x: 47, y: 53, w: 14, h: 14 },
   { id: "carpark",   label: "Carpark",   cameraId: "CAM-01", x: 25, y: 70, w: 18, h: 16 },
   { id: "stairwell", label: "Stairwell", cameraId: "CAM-05", x: 62, y: 70, w: 8, h: 16 },
-  { id: "gym",       label: "Gym",       cameraId: "CAM-12", x: 73, y: 70, w: 18, h: 16 },
+  { id: "gym",       label: "Gym",       cameraId: "CAM-12", x: 82, y: 70, w: 14, h: 14 },
 ];
 
 export const FEEDS: Feed[] = [

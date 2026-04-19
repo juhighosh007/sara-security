@@ -59,6 +59,7 @@ export function CondoMap({ activeIncidents, selectedZone, onSelectZone }: Props)
                   top: `${z.y}%`,
                   width: `${z.w}%`,
                   height: `${z.h}%`,
+                  transform: "translate(-50%, -50%)",
                 }}
               >
                 <span
