@@ -18,8 +18,13 @@ from flask_cors import cross_origin
 
 from detection_engine import SaraBrain
 
+from flask_cors import CORS # Ensure this import is at the top
+app = Flask(__name__)
+CORS(app) # Add this to allow the React UI to talk to Flask
+
 HOST = "127.0.0.1"
 PORT = 8765
+
 
 app = Flask(__name__)
 _lock = threading.Lock()
@@ -81,6 +86,7 @@ def main() -> None:
     print("  GET /api/status   — JSON pattern, confidence, reason")
     print("  GET /video.mjpg  — annotated MJPEG (CAM-04)")
     app.run(host=HOST, port=PORT, threaded=True, use_reloader=False)
+
 
 
 if __name__ == "__main__":

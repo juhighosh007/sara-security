@@ -379,14 +379,14 @@ const Index = () => {
       <main className="mx-auto flex min-h-0 w-full max-w-[1680px] flex-1 flex-col gap-4 p-3 md:p-5 lg:flex-row lg:gap-6">
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
           <div className="shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="h-[clamp(200px,24vh,280px)] min-h-[200px] sm:h-[clamp(220px,26vh,300px)] sm:min-h-[220px]">
-              <CondoMap
-                activeIncidents={activeIncidents}
-                selectedZone={selectedZone}
-                onSelectZone={(id) => setSelectedZone(id)}
-              />
-            </div>
-          </div>
+  <div className="h-[240px] sm:h-[280px]">
+    <CondoMap
+      activeIncidents={activeIncidents}
+      selectedZone={selectedZone}
+      onSelectZone={(id) => setSelectedZone(id)}
+    />
+  </div>
+</div>
 
           {lobbyFeed && (
             <FeedTile

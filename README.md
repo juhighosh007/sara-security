@@ -2,7 +2,7 @@
 
 SARA is a real-time monitoring dashboard that uses computer vision to assist security officers at residentials in identifying and responding to incidents. The system analyzes live video to detect emergencies and provides an interface for incident management and reporting.
 
-Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solution deck.
+Click [here](https://drive.google.com/drive/folders/1heNPMBAgzTEpZgy-qM4tteADZOxILYHy?usp=drive_link) to access the demo video + solution deck.
 
 ## 🛠 Key Functions
 
@@ -16,7 +16,6 @@ Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solu
 
    iv) **Delivery in Progress:** Identifies a delivery when a person is detected with a bag, suitcase or helmet, classifying them as courier.
       
-   v) **Visual Snapshots:** Every alert automatically captures a photo of the incident for immediate verification.
    
 3. **Command Dashboard**
    
@@ -24,7 +23,7 @@ Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solu
    
    ii) **Incident Playbooks:** The dashboard provides a step-by-step general checklist to handle the incident detected.
    
-   iii) **Audit PDF:** Resolving an incident generates a PDF report containing the event details, timestamps, and the incident snapshot.
+   iii) **Audit PDF:** Resolving an incident generates a PDF report containing the event details, timestamps
 
 ## Technical Architecture 
 
@@ -44,7 +43,7 @@ Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solu
    # Start the detection server
    python detection_server.py
    
-*Note: Ensure a webcam is connected. The server runs on port 5000.*
+*Note: Ensure a webcam is connected.*
 
 2. **React Dashboard**
    ```bash
@@ -53,8 +52,6 @@ Click [here](https://canva.link/mcvbppbj22845vg) to access the demo video + solu
 
    # Start the interface
    npm run dev
-
-*Access the site at http://localhost:5173.*
 
 ## 
 

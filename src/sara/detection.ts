@@ -9,7 +9,7 @@ export type BrainStatus = {
   frame_ok: boolean;
 };
 
-const defaultBase = "/detection-api";
+const defaultBase = "http://127.0.0.1:8765";
 
 export function detectionApiBase(): string {
   const v = import.meta.env.VITE_DETECTION_API as string | undefined;

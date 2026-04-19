@@ -33,7 +33,7 @@ VALUABLES = frozenset(
     ]
 )
 # Obstruction proxies in lobby / exit sightlines (lower frame band)
-HAZARD_FURNITURE = frozenset(["chair", "bench"])
+HAZARD_FURNITURE = frozenset([])
 
 
 @dataclass
@@ -155,36 +155,6 @@ class SaraBrain:
                         det_conf_f,
                     )
 
-            elif label in HAZARD_FURNITURE:
-                m = self.memory[tid]
-                m.last_seen = now
-                m.label = label
-                m.last_center = (cx, cy)
-                in_hazard_band = cy >= hazard_band_y
-                near_someone = False
-                for p in persons:
-                    if math.hypot(p["center"][0] - cx, p["center"][1] - cy) < near_px:
-                        near_someone = True
-                        break
-                if in_hazard_band and not near_someone:
-                    if m.hazard_unattended_since is None:
-                        m.hazard_unattended_since = now
-                    elif now - m.hazard_unattended_since > 5.0:
-                        self.set_alert(
-                            "STAIRWELL HAZARD",
-                            f"Obstruction: {label} unattended in exit sightline.",
-                            det_conf_f,
-                        )
-                else:
-                    m.hazard_unattended_since = None
-
-        for _tid, m in self.memory.items():
-            if m.label in HAZARD_FURNITURE and m.last_center is not None:
-                ux, uy = m.last_center
-                if any(
-                    math.hypot(p["center"][0] - ux, p["center"][1] - uy) < near_px for p in persons
-                ):
-                    m.hazard_unattended_since = None
 
         # Theft: valuable disappeared shortly after interaction
         for tid, data in list(self.memory.items()):

@@ -26,7 +26,7 @@ export function CondoMap({ activeIncidents, selectedZone, onSelectZone }: Props)
       </header>
 
       <div className="min-h-0 flex-1 p-2 sm:p-3">
-        <div className="relative h-full min-h-[188px] w-full overflow-hidden rounded-md border border-border bg-secondary/40 sm:min-h-[210px]">
+        <div className="relative h-[240px] w-full overflow-hidden rounded-md border border-border bg-secondary/40 sm:h-[280px]">
           <div
             className="pointer-events-none absolute inset-0 opacity-50"
             style={{
