@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { Activity, ShieldCheck, UserCheck, UserX } from "lucide-react";
+import { Activity, ShieldCheck, Radio } from "lucide-react";
 
 interface Props {
   resolvedCount: number;
   activeCount: number;
-  enrolled: boolean;
+  lobbyCameraOnline: boolean;
 }
 
-export function Header({ resolvedCount, activeCount, enrolled }: Props) {
+export function Header({ resolvedCount, activeCount, lobbyCameraOnline }: Props) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -39,14 +39,14 @@ export function Header({ resolvedCount, activeCount, enrolled }: Props) {
 
         <div
           className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 md:flex ${
-            enrolled
+            lobbyCameraOnline
               ? "border-success/30 bg-success/10 text-success"
               : "border-border bg-secondary text-muted-foreground"
           }`}
         >
-          {enrolled ? <UserCheck className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
+          <Radio className="h-3.5 w-3.5" />
           <span className="font-mono-hud text-[11px] uppercase">
-            {enrolled ? "Resident enrolled" : "No resident enrolled"}
+            {lobbyCameraOnline ? "Lobby camera linked" : "Lobby camera offline"}
           </span>
         </div>
 

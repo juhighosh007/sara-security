@@ -35,7 +35,7 @@ export type EscalationStage = "guard" | "supervisor" | "manager";
 
 export interface ContactLogEntry {
   at: number;
-  channel: "telegram" | "email" | "sms";
+  channel: "telegram" | "sms";
   target: string;
   status: "sent" | "failed" | "pending";
   detail?: string;
@@ -54,11 +54,13 @@ export interface Incident {
   escalatedAt?: number;
   severity: "low" | "medium" | "high";
   recommendation: string;
+  /** Verbatim observation from live video analysis */
+  detectorReason?: string;
   checklist: { id: string; label: string; done: boolean }[];
   snapshot?: string; // dataURL
   /** seconds before auto-escalation when first opened */
   escalationSeconds: number;
   contactLog: ContactLogEntry[];
   /** trigger source for the incident */
-  trigger: "unknown_face" | "manual" | "auto_pattern";
+  trigger: "manual" | "auto_pattern" | "detector";
 }

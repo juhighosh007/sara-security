@@ -6,90 +6,82 @@ interface Props {
   activeIncidents: Incident[];
   selectedZone?: ZoneId | null;
   onSelectZone: (id: ZoneId) => void;
-  residentVisible?: boolean;
 }
 
-export function CondoMap({ activeIncidents, selectedZone, onSelectZone, residentVisible }: Props) {
+export function CondoMap({ activeIncidents, selectedZone, onSelectZone }: Props) {
   const activeByZone = new Map(activeIncidents.map((i) => [i.zoneId, i]));
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-border bg-card">
-      {/* Faint grid backdrop */}
-      <div
-        className="absolute inset-0 opacity-60"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
-
-      {/* Title overlay */}
-      <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-primary blink" />
-        <span className="font-mono-hud text-[10px] uppercase tracking-widest text-foreground">
-          Digital Twin · Block A · Level 1
-        </span>
-      </div>
-      <div className="absolute right-3 top-3 z-10 font-mono-hud text-[10px] uppercase tracking-widest text-muted-foreground">
-        scanning {ZONES.length} zones
-      </div>
-
-      {residentVisible && (
-        <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-success/40 bg-success/10 px-2.5 py-1 font-mono-hud text-[10px] uppercase text-success">
-          <span className="h-1.5 w-1.5 rounded-full bg-success blink" />
-          Resident on premises
+    <div className="flex h-full min-h-0 w-full flex-col bg-card">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary blink" aria-hidden />
+          <span className="truncate font-mono-hud text-[10px] font-medium uppercase tracking-wide text-foreground">
+            Site map · Block A · L1
+          </span>
         </div>
-      )}
+        <span className="shrink-0 font-mono-hud text-[9px] uppercase tracking-wider text-muted-foreground">
+          {ZONES.length} zones
+        </span>
+      </header>
 
-      {/* Zones */}
-      {ZONES.map((z) => {
-        const incident = activeByZone.get(z.id);
-        const isSelected = selectedZone === z.id;
-        return (
-          <button
-            key={z.id}
-            onClick={() => onSelectZone(z.id)}
-            className={cn(
-              "group absolute z-10 rounded-md border text-left transition-all",
-              "hover:border-primary",
-              incident
-                ? "border-primary bg-primary/15 pulse-alert"
-                : isSelected
-                ? "border-primary bg-primary/5"
-                : "border-border bg-secondary"
-            )}
+      <div className="min-h-0 flex-1 p-2 sm:p-3">
+        <div className="relative h-full min-h-[188px] w-full overflow-hidden rounded-md border border-border bg-secondary/40 sm:min-h-[210px]">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-50"
             style={{
-              left: `${z.x}%`,
-              top: `${z.y}%`,
-              width: `${z.w}%`,
-              height: `${z.h}%`,
+              backgroundImage:
+                "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
             }}
-          >
-            <div className="flex h-full w-full flex-col justify-between p-1.5">
-              <span
+          />
+
+          {ZONES.map((z) => {
+            const incident = activeByZone.get(z.id);
+            const isSelected = selectedZone === z.id;
+            return (
+              <button
+                key={z.id}
+                type="button"
+                title={`${z.label} (${z.cameraId})`}
+                onClick={() => onSelectZone(z.id)}
                 className={cn(
-                  "font-mono-hud text-[9px] uppercase tracking-wider",
-                  incident ? "text-primary" : "text-muted-foreground"
+                  "absolute z-10 flex flex-col items-stretch justify-center overflow-hidden rounded border text-center transition-colors",
+                  "px-0.5 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  incident
+                    ? "border-primary bg-primary/20 ring-1 ring-primary/40 pulse-alert"
+                    : isSelected
+                    ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                    : "border-border/80 bg-card/90 hover:border-primary/60 hover:bg-card"
                 )}
+                style={{
+                  left: `${z.x}%`,
+                  top: `${z.y}%`,
+                  width: `${z.w}%`,
+                  height: `${z.h}%`,
+                }}
               >
-                {z.cameraId}
-              </span>
-              <span
-                className={cn(
-                  "text-xs font-medium leading-tight",
-                  incident ? "text-foreground" : "text-foreground/80"
-                )}
-              >
-                {z.label}
-              </span>
-            </div>
-            {incident && (
-              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary))]" />
-            )}
-          </button>
-        );
-      })}
+                <span
+                  className={cn(
+                    "block truncate font-mono-hud text-[7px] uppercase leading-none tracking-tight sm:text-[8px]",
+                    incident ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {z.cameraId}
+                </span>
+                <span
+                  className={cn(
+                    "mt-0.5 block truncate px-0.5 text-[8px] font-medium leading-tight sm:text-[9px]",
+                    incident ? "text-foreground" : "text-foreground/85"
+                  )}
+                >
+                  {z.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

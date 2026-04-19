@@ -33,12 +33,22 @@ export function generateIncidentPdf(incident: Incident) {
     ["Pattern",      incident.pattern],
     ["Severity",     incident.severity.toUpperCase()],
     ["Confidence",   `${incident.confidence}%`],
-    ["Trigger",      incident.trigger.replace("_", " ")],
+    [
+      "Source",
+      incident.trigger === "detector"
+        ? "Live lobby camera"
+        : incident.trigger === "manual"
+        ? "Training drill"
+        : "System test",
+    ],
     ["Detected",     new Date(incident.detectedAt).toLocaleString()],
     ["Acknowledged", incident.acknowledgedAt ? new Date(incident.acknowledgedAt).toLocaleString() : "—"],
     ["Escalated",    incident.escalatedAt ? new Date(incident.escalatedAt).toLocaleString() : "—"],
     ["Resolved",     incident.resolvedAt ? new Date(incident.resolvedAt).toLocaleString() : "—"],
     ["Recommendation", incident.recommendation],
+    ...(incident.detectorReason
+      ? ([["Observation", incident.detectorReason]] as [string, string][])
+      : []),
   ];
   for (const [k, v] of lines) {
     doc.setFont("helvetica", "bold");

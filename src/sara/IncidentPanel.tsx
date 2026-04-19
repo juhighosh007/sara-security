@@ -1,4 +1,4 @@
-import { AlertTriangle, FileDown, X, ShieldAlert, Check, Send, Mail, MessageCircle } from "lucide-react";
+import { AlertTriangle, FileDown, X, ShieldAlert, Check, Send, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { ContactLogEntry, Incident } from "./types";
@@ -25,15 +25,16 @@ export function IncidentPanel({
 }: Props) {
   if (!incident) {
     return (
-      <aside className="hidden h-full flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-6 text-center lg:flex">
+      <aside className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card p-6 text-center lg:min-h-0 lg:flex-1">
         <div className="grid h-12 w-12 place-items-center rounded-full border border-success/40 bg-success/10 text-success">
           <AlertTriangle className="h-5 w-5" />
         </div>
         <p className="mt-4 font-mono-hud text-xs uppercase tracking-wider text-muted-foreground">
           No active incidents
         </p>
-        <p className="mt-1 max-w-[22ch] text-xs text-muted-foreground">
-          SARA is passively monitoring all feeds and ignoring known residents.
+        <p className="mt-1 max-w-[28ch] text-xs text-muted-foreground">
+          SARA is watching the lobby live feed. When a situation is detected, the details appear here
+          for your response.
         </p>
       </aside>
     );
@@ -45,7 +46,7 @@ export function IncidentPanel({
   const showCountdown = !acknowledged && countdownSeconds !== null && countdownSeconds > 0;
 
   return (
-    <aside className="flex h-full flex-col overflow-hidden rounded-lg border border-primary/40 bg-card shadow-[var(--shadow-panel)]">
+    <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-primary/40 bg-card shadow-[var(--shadow-panel)]">
       <div className="flex items-start justify-between gap-2 border-b border-border bg-primary/10 p-3">
         <div className="flex items-start gap-2">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -67,7 +68,7 @@ export function IncidentPanel({
         </button>
       </div>
 
-      <div className="space-y-4 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4">
         {/* Escalation banner */}
         {showCountdown && (
           <div className="flex items-center justify-between rounded-md border border-primary bg-primary/10 px-3 py-2">
@@ -111,9 +112,19 @@ export function IncidentPanel({
         {/* Pattern */}
         <div>
           <p className="font-mono-hud text-[9px] uppercase tracking-wider text-muted-foreground">
-            Detected pattern
+            Situation detected
           </p>
           <p className="mt-1 text-sm">{incident.pattern}</p>
+          {incident.detectorReason && (
+            <div className="mt-2 rounded-md border border-border bg-muted/40 p-2">
+              <p className="font-mono-hud text-[9px] uppercase tracking-wider text-muted-foreground">
+                Observation
+              </p>
+              <p className="mt-1 font-mono-hud text-[10px] leading-snug text-foreground">
+                {incident.detectorReason}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Confidence + severity row */}
@@ -200,7 +211,7 @@ export function IncidentPanel({
         </div>
       </div>
 
-      <div className="space-y-2 border-t border-border bg-card p-3">
+      <div className="shrink-0 space-y-2 border-t border-border bg-card p-3">
         {!acknowledged && !escalated && (
           <Button
             onClick={() => onSos(incident.id)}
@@ -224,8 +235,7 @@ export function IncidentPanel({
 }
 
 function ContactRow({ entry }: { entry: ContactLogEntry }) {
-  const Icon =
-    entry.channel === "telegram" ? MessageCircle : entry.channel === "email" ? Mail : Send;
+  const Icon = entry.channel === "telegram" ? MessageCircle : Send;
   const time = new Date(entry.at).toLocaleTimeString("en-GB", { hour12: false });
   const tone =
     entry.status === "sent"

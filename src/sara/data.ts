@@ -7,7 +7,7 @@ export const ZONES: Zone[] = [
   { id: "elevator",  label: "Elevator",  cameraId: "CAM-02", x: 78, y: 53, w: 11, h: 12 },
   { id: "hallway",   label: "Hallway",   cameraId: "CAM-09", x: 47, y: 53, w: 14, h: 14 },
   { id: "carpark",   label: "Carpark",   cameraId: "CAM-01", x: 25, y: 70, w: 18, h: 16 },
-  { id: "stairwell", label: "Stairwell", cameraId: "CAM-05", x: 60, y: 70, w: 9,  h: 16 },
+  { id: "stairwell", label: "Stairwell", cameraId: "CAM-05", x: 62, y: 70, w: 8, h: 16 },
   { id: "gym",       label: "Gym",       cameraId: "CAM-12", x: 73, y: 70, w: 18, h: 16 },
 ];
 
@@ -25,7 +25,7 @@ export const FEEDS: Feed[] = [
     zoneId: "carpark",
     label: "Carpark — Recorded",
     kind: "recorded",
-    src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    src: "/recordings/carpark.mp4",
   },
   {
     id: "feed-3",
@@ -33,25 +33,48 @@ export const FEEDS: Feed[] = [
     zoneId: "hallway",
     label: "Hallway — Recorded",
     kind: "recorded",
-    src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    src: "/recordings/hallway.mp4",
   },
 ];
 
 export const PATTERNS = [
-  { pattern: "Unknown face detected",   severity: "high"   as const, recommendation: "Use intercom to verify residency." },
-  { pattern: "Loitering > 2 min",       severity: "high"   as const, recommendation: "Use intercom to verify residency." },
-  { pattern: "Tailgating at entry",     severity: "high"   as const, recommendation: "Dispatch on-site guard to lobby." },
-  { pattern: "Unattended object",       severity: "medium" as const, recommendation: "Inspect object via PTZ zoom." },
-  { pattern: "After-hours access",      severity: "medium" as const, recommendation: "Cross-check with resident log." },
+  { 
+    pattern: "EMERGENCY: FALL", 
+    severity: "high" as const, 
+    recommendation: "Immediate medical dispatch. Check vitals via intercom." 
+  },
+  { 
+    pattern: "POTENTIAL THEFT", 
+    severity: "high" as const, 
+    recommendation: "Asset removed suddenly. Lock down exit gates and review logs." 
+  },
+  { 
+    pattern: "DELIVERY IN PROGRESS", 
+    severity: "low" as const, 
+    recommendation: "Verify courier ID and authorization before releasing the parcel." 
+  },
+  { 
+    pattern: "STAIRWELL HAZARD", 
+    severity: "medium" as const, 
+    recommendation: "Obstruction in fire exit. Dispatch guard to clear path." 
+  },
+  { 
+    pattern: "UNATTENDED OBJECT", 
+    severity: "medium" as const, 
+    recommendation: "Security Risk: Item left alone > 8s. Inspect via PTZ zoom." 
+  },
 ];
 
 export const DEFAULT_CHECKLIST = [
-  { id: "intercom",  label: "Intercom used",       done: false },
-  { id: "verified",  label: "Resident confirmed",  done: false },
-  { id: "logged",    label: "Logged in incident book", done: false },
-  { id: "patrol",    label: "Physical patrol dispatched", done: false },
+  { id: "intercom", label: "Intercom used", done: false },
+  { id: "verified", label: "Identity / access verified", done: false },
+  { id: "logged", label: "Logged in incident book", done: false },
+  { id: "patrol", label: "Physical patrol dispatched", done: false },
 ];
 
+export function findPatternMeta(pattern: string) {
+  return PATTERNS.find((p) => p.pattern === pattern) ?? null;
+}
 /** Seconds before SARA auto-escalates if guard hasn't acknowledged */
 export const DEFAULT_ESCALATION_SECONDS = 15;
 

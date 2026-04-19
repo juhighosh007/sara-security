@@ -11,6 +11,14 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      // Python detection_server.py (CAM-04 brain + MJPEG)
+      "/detection-api": {
+        target: "http://127.0.0.1:8765",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/detection-api/, ""),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

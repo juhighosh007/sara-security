@@ -4,7 +4,7 @@ import { CondoMap } from "@/sara/CondoMap";
 import { FeedTile } from "@/sara/FeedTile";
 import { IncidentPanel } from "@/sara/IncidentPanel";
 import { Button } from "@/components/ui/button";
-import { Zap, ScanFace } from "lucide-react";
+import { Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -13,8 +13,14 @@ import {
   FEEDS,
   PATTERNS,
   ZONES,
+  findPatternMeta,
   zoneById,
 } from "@/sara/data";
+import {
+  BRAIN_MONITORING_PATTERN,
+  fetchBrainStatus,
+  type BrainStatus,
+} from "@/sara/detection";
 import type { ContactLogEntry, Incident, ZoneId } from "@/sara/types";
 import { generateIncidentPdf } from "@/sara/pdf";
 
@@ -22,13 +28,12 @@ const Index = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [resolvedCount, setResolvedCount] = useState(0);
   const [selectedZone, setSelectedZone] = useState<ZoneId | null>(null);
-  const [autoMode, setAutoMode] = useState(false);
-  const [knownDescriptors, setKnownDescriptors] = useState<Float32Array[]>([]);
-  const [residentVisible, setResidentVisible] = useState(false);
-  const [tick, setTick] = useState(0); // 1Hz tick for countdown UI
+  const [brainStatus, setBrainStatus] = useState<BrainStatus | null>(null);
+  const [tick, setTick] = useState(0);
 
-  // Snapshot capture functions registered by feed tiles
   const captureRefs = useRef<Record<string, () => string | null>>({});
+  /** Prevents overlapping escalation work for the same incident (duplicate Telegram). */
+  const escalationLockRef = useRef(new Set<string>());
   const registerCapture = (feedId: string) => (fn: () => string | null) => {
     captureRefs.current[feedId] = fn;
   };
@@ -41,11 +46,103 @@ const Index = () => {
     return incidents.find((i) => !i.resolvedAt) ?? null;
   }, [incidents, selectedZone]);
 
-  // 1Hz tick for countdown rendering
   useEffect(() => {
     const t = setInterval(() => setTick((v) => v + 1), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    const poll = async () => {
+      const s = await fetchBrainStatus(ac.signal);
+      setBrainStatus(s);
+    };
+    void poll();
+    const id = window.setInterval(poll, 400);
+    return () => {
+      ac.abort();
+      clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!brainStatus?.frame_ok) return;
+    if (brainStatus.pattern === BRAIN_MONITORING_PATTERN) return;
+
+    let created = false;
+    let toastLabel = "";
+    let toastDesc = "";
+
+    setIncidents((prev) => {
+      const openDet = prev.find(
+        (i) => i.zoneId === "lobby" && !i.resolvedAt && i.trigger === "detector"
+      );
+      const meta = findPatternMeta(brainStatus.pattern);
+      const severity = meta?.severity ?? "high";
+      const recommendation =
+        meta?.recommendation ??
+        "Review live feed and follow standard response protocol.";
+      const confidence = Math.round(Math.min(100, Math.max(0, brainStatus.confidence)));
+
+      if (openDet) {
+        const same =
+          openDet.pattern === brainStatus.pattern &&
+          openDet.confidence === confidence &&
+          openDet.detectorReason === brainStatus.reason &&
+          openDet.recommendation === recommendation;
+        if (same) return prev;
+        return prev.map((i) =>
+          i.id === openDet.id
+            ? {
+                ...i,
+                pattern: brainStatus.pattern,
+                confidence,
+                severity,
+                recommendation,
+                detectorReason: brainStatus.reason,
+              }
+            : i
+        );
+      }
+
+      const openLobbyOther = prev.some(
+        (i) => i.zoneId === "lobby" && !i.resolvedAt && i.trigger !== "detector"
+      );
+      if (openLobbyOther) return prev;
+
+      const z = zoneById("lobby");
+      if (!z) return prev;
+
+      const incident: Incident = {
+        id: String(Date.now()).slice(-5),
+        zoneId: "lobby",
+        cameraId: z.cameraId,
+        label: `${z.label} — ${z.cameraId}`,
+        pattern: brainStatus.pattern,
+        severity,
+        recommendation,
+        confidence,
+        detectorReason: brainStatus.reason,
+        detectedAt: Date.now(),
+        checklist: DEFAULT_CHECKLIST.map((c) => ({ ...c })),
+        escalationSeconds: DEFAULT_ESCALATION_SECONDS,
+        contactLog: [],
+        trigger: "detector",
+      };
+
+      created = true;
+      toastLabel = z.label;
+      toastDesc = `${brainStatus.pattern} · ${confidence}% confidence`;
+      return [...prev, incident];
+    });
+
+    if (created) {
+      window.setTimeout(() => {
+        toast.error(`ALERT · ${toastLabel}`, { description: toastDesc });
+        setSelectedZone("lobby");
+      }, 0);
+    }
+  }, [brainStatus]);
 
   const triggerIncident = useCallback(
     (opts?: {
@@ -55,56 +152,80 @@ const Index = () => {
       recommendation?: string;
       snapshot?: string | null;
       trigger?: Incident["trigger"];
+      confidence?: number;
+      detectorReason?: string;
     }) => {
+      let created = false;
+      let zoneForToast: { id: ZoneId; label: string } | null = null;
+      let desc = "";
+
       setIncidents((prev) => {
         const taken = new Set(prev.filter((i) => !i.resolvedAt).map((i) => i.zoneId));
         const candidates = ZONES.filter((z) => !taken.has(z.id));
         if (candidates.length === 0) return prev;
-        const zone = opts?.forcedZone
-          ? zoneById(opts.forcedZone) ?? candidates[0]
-          : candidates[Math.floor(Math.random() * candidates.length)];
-        const pat = opts?.pattern
-          ? {
-              pattern: opts.pattern,
-              severity: opts.severity ?? ("high" as const),
-              recommendation: opts.recommendation ?? "Verify the individual via intercom.",
-            }
-          : PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+        const zone =
+          opts?.forcedZone != null
+            ? zoneById(opts.forcedZone) ?? candidates[0]
+            : candidates[Math.floor(Math.random() * candidates.length)];
+
+        let pattern: string;
+        let severity: "low" | "medium" | "high";
+        let recommendation: string;
+        let confidence: number;
+        let detectorReason: string | undefined;
+
+        if (opts?.pattern) {
+          const meta = findPatternMeta(opts.pattern);
+          pattern = opts.pattern;
+          severity = opts.severity ?? meta?.severity ?? "high";
+          recommendation =
+            opts.recommendation ??
+            meta?.recommendation ??
+            "Verify the situation via intercom or patrol.";
+          confidence = Math.round(opts.confidence ?? 0);
+          detectorReason = opts.detectorReason;
+        } else {
+          const pick = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+          pattern = pick.pattern;
+          severity = pick.severity;
+          recommendation = pick.recommendation;
+          confidence = 0;
+          detectorReason = undefined;
+        }
+
         const incident: Incident = {
           id: String(Date.now()).slice(-5),
           zoneId: zone.id,
           cameraId: zone.cameraId,
           label: `${zone.label} — ${zone.cameraId}`,
-          pattern: pat.pattern,
-          severity: pat.severity,
-          recommendation: pat.recommendation,
-          confidence: 78 + Math.floor(Math.random() * 20),
+          pattern,
+          severity,
+          recommendation,
+          confidence,
+          detectorReason,
           detectedAt: Date.now(),
           checklist: DEFAULT_CHECKLIST.map((c) => ({ ...c })),
           escalationSeconds: DEFAULT_ESCALATION_SECONDS,
           contactLog: [],
-          trigger: opts?.trigger ?? "auto_pattern",
+          trigger: opts?.trigger ?? "manual",
           snapshot: opts?.snapshot ?? undefined,
         };
-        toast.error(`ALERT · ${zone.label}`, {
-          description: `${pat.pattern} · ${incident.confidence}% confidence`,
-        });
-        setSelectedZone(zone.id);
+
+        created = true;
+        zoneForToast = { id: zone.id, label: zone.label };
+        desc = `${pattern} (training drill — not from live camera)`;
         return [...prev, incident];
       });
+
+      if (created && zoneForToast) {
+        window.setTimeout(() => {
+          toast.error(`DRILL · ${zoneForToast!.label}`, { description: desc });
+          setSelectedZone(zoneForToast!.id);
+        }, 0);
+      }
     },
     []
   );
-
-  // Auto-trigger loop (mocked AI detection)
-  useEffect(() => {
-    if (!autoMode) return;
-    const t = setInterval(() => {
-      const active = incidents.filter((i) => !i.resolvedAt).length;
-      if (active < 2 && Math.random() < 0.35) triggerIncident();
-    }, 12000);
-    return () => clearInterval(t);
-  }, [autoMode, incidents, triggerIncident]);
 
   const toggleChecklist = (incidentId: string, itemId: string) => {
     setIncidents((prev) =>
@@ -139,72 +260,65 @@ const Index = () => {
   };
 
   const escalateIncident = useCallback(async (incidentId: string, manual: boolean) => {
+    if (escalationLockRef.current.has(incidentId)) return;
     const incident = incidents.find((i) => i.id === incidentId);
     if (!incident || incident.escalatedAt) return;
+    escalationLockRef.current.add(incidentId);
 
-    setIncidents((prev) =>
-      prev.map((i) => (i.id === incidentId ? { ...i, escalatedAt: Date.now() } : i))
-    );
-
-    toast.warning(manual ? "SOS sent" : "Auto-escalation triggered", {
-      description: "Notifying supervisor and town council…",
-    });
-
-    // Telegram (real, via edge function if configured)
-    let telegramStatus: ContactLogEntry["status"] = "pending";
-    let telegramDetail: string | undefined;
     try {
-      const snapshot =
-        incident.snapshot ??
-        captureRefs.current[FEEDS.find((f) => f.zoneId === incident.zoneId)?.id ?? ""]?.() ??
-        undefined;
-      const { data, error } = await supabase.functions.invoke("notify-telegram", {
-        body: {
-          message:
-            `🚨 SARA ALERT — ${incident.label}\n` +
-            `Pattern: ${incident.pattern}\n` +
-            `Confidence: ${incident.confidence}%\n` +
-            `Severity: ${incident.severity.toUpperCase()}\n` +
-            `Time: ${new Date().toLocaleString()}\n` +
-            (manual ? "Triggered manually via SOS." : "No guard response within timeout."),
-          snapshot: snapshot ?? null,
-        },
+      setIncidents((prev) =>
+        prev.map((i) => (i.id === incidentId ? { ...i, escalatedAt: Date.now() } : i))
+      );
+
+      toast.warning(manual ? "SOS sent" : "Auto-escalation triggered", {
+        description: "Notifying supervisor…",
       });
-      if (error) throw error;
-      if (data?.ok) {
-        telegramStatus = "sent";
-        telegramDetail = "Telegram bot";
-      } else {
+
+      let telegramStatus: ContactLogEntry["status"] = "pending";
+      let telegramDetail: string | undefined;
+      try {
+        const snapshot =
+          incident.snapshot ??
+          captureRefs.current[FEEDS.find((f) => f.zoneId === incident.zoneId)?.id ?? ""]?.() ??
+          undefined;
+        const { data, error } = await supabase.functions.invoke("notify-telegram", {
+          body: {
+            message:
+              `🚨 SARA ALERT — ${incident.label}\n` +
+              `Pattern: ${incident.pattern}\n` +
+              `Confidence: ${incident.confidence}%\n` +
+              `Severity: ${incident.severity.toUpperCase()}\n` +
+              `Time: ${new Date().toLocaleString()}\n` +
+              (manual ? "Triggered manually via SOS." : "No guard response within timeout."),
+            snapshot: snapshot ?? null,
+          },
+        });
+        if (error) throw error;
+        if (data?.ok) {
+          telegramStatus = "sent";
+          telegramDetail = "Telegram bot";
+        } else {
+          telegramStatus = "failed";
+          telegramDetail = data?.error ?? "unknown error";
+        }
+      } catch (e: unknown) {
         telegramStatus = "failed";
-        telegramDetail = data?.error ?? "unknown error";
+        telegramDetail = e instanceof Error ? e.message : "Telegram not configured";
       }
-    } catch (e: unknown) {
-      telegramStatus = "failed";
-      telegramDetail = e instanceof Error ? e.message : "Telegram not configured";
-    }
 
-    appendContact(incidentId, {
-      at: Date.now(),
-      channel: "telegram",
-      target: "Supervisor Wong",
-      status: telegramStatus,
-      detail: telegramDetail,
-    });
-
-    // Email (simulated)
-    setTimeout(() => {
       appendContact(incidentId, {
         at: Date.now(),
-        channel: "email",
-        target: "manager@blocka.condo",
-        status: "sent",
-        detail: "Incident report draft attached",
+        channel: "telegram",
+        target: "Supervisor Wong",
+        status: telegramStatus,
+        detail: telegramDetail,
       });
-    }, 800);
+    } finally {
+      escalationLockRef.current.delete(incidentId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incidents]);
 
-  // Auto-escalation watcher
   useEffect(() => {
     const active = incidents.find(
       (i) => !i.resolvedAt && !i.acknowledgedAt && !i.escalatedAt
@@ -238,119 +352,82 @@ const Index = () => {
     setTimeout(() => generateIncidentPdf(finalised), 200);
   };
 
-  const handleEnrollFace = (descriptor: Float32Array, _snapshot: string) => {
-    setKnownDescriptors([descriptor]);
-    toast.success("Face enrolled as Resident", {
-      description: "SARA will ignore this face. Unknown faces will trigger alerts.",
-    });
-  };
-
-  const handleUnknownFace = useCallback(
-    (snapshot: string | null) => {
-      // Only trigger if no active lobby incident, and we have an enrolled resident
-      if (knownDescriptors.length === 0) return;
-      const hasActiveLobby = incidents.some(
-        (i) => i.zoneId === "lobby" && !i.resolvedAt
-      );
-      if (hasActiveLobby) return;
-      triggerIncident({
-        forcedZone: "lobby",
-        pattern: "Unknown face detected",
-        severity: "high",
-        recommendation: "Use intercom to verify residency before granting access.",
-        snapshot,
-        trigger: "unknown_face",
-      });
-    },
-    [knownDescriptors.length, incidents, triggerIncident]
-  );
-
   const activeIncidents = incidents.filter((i) => !i.resolvedAt);
   const incidentByZone = new Map(activeIncidents.map((i) => [i.zoneId, i]));
 
-  // Countdown for the active incident
-  const countdownSeconds = activeIncident && !activeIncident.acknowledgedAt && !activeIncident.escalatedAt
-    ? Math.max(
-        0,
-        activeIncident.escalationSeconds -
-          Math.floor((Date.now() - activeIncident.detectedAt) / 1000)
-      )
-    : null;
+  const countdownSeconds =
+    activeIncident && !activeIncident.acknowledgedAt && !activeIncident.escalatedAt
+      ? Math.max(
+          0,
+          activeIncident.escalationSeconds -
+            Math.floor((Date.now() - activeIncident.detectedAt) / 1000)
+        )
+      : null;
+
+  const lobbyCameraOnline = brainStatus !== null && brainStatus.frame_ok;
+  const lobbyFeed = FEEDS.find((f) => f.kind === "live");
+  const secondaryFeeds = FEEDS.filter((f) => f.kind !== "live");
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <Header
         resolvedCount={resolvedCount}
         activeCount={activeIncidents.length}
-        enrolled={knownDescriptors.length > 0}
+        lobbyCameraOnline={lobbyCameraOnline}
       />
 
-      <main className="flex flex-1 flex-col gap-3 p-3 md:p-4 lg:flex-row">
-        {/* Map + feeds column */}
-        <section className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="relative min-h-[340px] flex-1">
-            <CondoMap
-              activeIncidents={activeIncidents}
-              selectedZone={selectedZone}
-              onSelectZone={(id) => setSelectedZone(id)}
-              residentVisible={residentVisible && knownDescriptors.length > 0}
-            />
-          </div>
-
-          {/* Feed grid */}
-          <div className="flex items-center justify-between">
-            <p className="font-mono-hud text-[10px] uppercase tracking-widest text-muted-foreground">
-              Live feeds · {FEEDS.length} channels{" "}
-              {knownDescriptors.length > 0 && (
-                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-success">
-                  <ScanFace className="h-3 w-3" />
-                  Whitelist active
-                </span>
-              )}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setAutoMode((v) => !v)}
-                className="h-7 gap-1.5 px-2 font-mono-hud text-[10px] uppercase"
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    autoMode ? "bg-success blink" : "bg-muted-foreground"
-                  }`}
-                />
-                Auto-detect {autoMode ? "on" : "off"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => triggerIncident({ trigger: "manual" })}
-                className="h-7 gap-1.5 px-2 font-mono-hud text-[10px] uppercase"
-              >
-                <Zap className="h-3 w-3" />
-                Simulate alert
-              </Button>
+      <main className="mx-auto flex min-h-0 w-full max-w-[1680px] flex-1 flex-col gap-4 p-3 md:p-5 lg:flex-row lg:gap-6">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
+          <div className="shrink-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <div className="h-[clamp(200px,24vh,280px)] min-h-[200px] sm:h-[clamp(220px,26vh,300px)] sm:min-h-[220px]">
+              <CondoMap
+                activeIncidents={activeIncidents}
+                selectedZone={selectedZone}
+                onSelectZone={(id) => setSelectedZone(id)}
+              />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FEEDS.map((f) => (
+
+          {lobbyFeed && (
+            <FeedTile
+              key={lobbyFeed.id}
+              feed={lobbyFeed}
+              layout="primary"
+              hasIncident={incidentByZone.has(lobbyFeed.zoneId)}
+              registerCapture={registerCapture(lobbyFeed.id)}
+              brainStatus={brainStatus}
+            />
+          )}
+
+          <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-mono-hud text-[10px] uppercase tracking-widest text-muted-foreground">
+              Other cameras · {secondaryFeeds.length}
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => triggerIncident({ trigger: "manual" })}
+              className="h-8 shrink-0 gap-1.5 self-start font-mono-hud text-[10px] uppercase sm:self-auto"
+            >
+              <Zap className="h-3 w-3" />
+              Simulate drill
+            </Button>
+          </div>
+          <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            {secondaryFeeds.map((f) => (
               <FeedTile
                 key={f.id}
                 feed={f}
+                layout="compact"
                 hasIncident={incidentByZone.has(f.zoneId)}
                 registerCapture={registerCapture(f.id)}
-                knownDescriptors={f.kind === "live" ? knownDescriptors : undefined}
-                onEnrollFace={f.kind === "live" ? handleEnrollFace : undefined}
-                onUnknownFace={f.kind === "live" ? handleUnknownFace : undefined}
-                onResidentSeen={f.kind === "live" ? setResidentVisible : undefined}
               />
             ))}
           </div>
         </section>
 
-        {/* Incident panel */}
-        <section className="lg:w-[360px] lg:shrink-0">
-          <div className="h-full min-h-[300px]">
+        <section className="flex w-full shrink-0 flex-col lg:w-[min(100%,380px)] lg:max-w-[400px]">
+          <div className="flex min-h-[280px] flex-1 flex-col lg:sticky lg:top-4 lg:max-h-[calc(100dvh-5.5rem)]">
             <IncidentPanel
               incident={activeIncident}
               countdownSeconds={countdownSeconds}
